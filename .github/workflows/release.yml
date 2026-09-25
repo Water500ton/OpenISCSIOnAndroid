@@ -1,0 +1,38 @@
+name: Release Android KernelSU module
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Android NDK
+        run: |
+          set -euxo pipefail
+          curl -L --fail --retry 3 \
+            -o /tmp/android-ndk-r27c-linux.zip \
+            https://dl.google.com/android/repository/android-ndk-r27c-linux.zip
+          unzip -q /tmp/android-ndk-r27c-linux.zip -d /tmp
+          echo "ANDROID_NDK_HOME=/tmp/android-ndk-r27c" >> "$GITHUB_ENV"
+
+      - name: Build KernelSU module
+        run: |
+          set -euxo pipefail
+          OPENSSL_PREFIX=/tmp/openssl ./android/build.sh
+
+      - name: Create release and upload asset
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: OpenISCSIOnAndroid-KernelSU-arm64-v2.1.13.zip
