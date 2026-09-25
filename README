@@ -1952,3 +1952,54 @@ To print the info for a specific host, you can pass in the -H argument
 with the host number:
 
 	iscsiadm -m host -P 1 -H 7
+
+Android / KernelSU
+==================
+
+This repository includes an Android ARM64 port of the Open-iSCSI userspace
+tools. The port removes dependencies that do not exist on Android
+(libkmod, libmount, systemd and open-isns) and points all configuration and
+runtime state to `/data/iscsi`.
+
+Built binaries:
+
+- `iscsid`, `iscsiadm`, `iscsistart`, `iscsi-iname`
+- `libopeniscsiusr.so.0.2.0`
+
+The minimum supported Android version is API 26 (Android 8.0).
+
+Building the KernelSU module
+----------------------------
+
+Requirements:
+
+- Android NDK r27 or newer
+- `curl`, `tar`, `make`, `python3`
+
+Run:
+
+    ANDROID_NDK_HOME=/path/to/android-ndk ./android/build.sh
+
+The script downloads OpenSSL, cross-compiles Open-iSCSI for ARM64, stages the
+files under `module/`, and creates:
+
+    OpenISCSIOnAndroid-KernelSU-arm64-v2.1.13.zip
+
+Install the zip with KernelSU or Magisk Manager and reboot. On first boot the
+module creates `/data/iscsi` and copies `iscsid.conf` and a generated
+`initiatorname.iscsi` into it. The `iscsid` daemon is started by
+`service.sh`.
+
+Kernel modules
+--------------
+
+The userspace tools assume the required kernel support
+(`scsi_transport_iscsi`, `libiscsi`, `iscsi_tcp`) is already present in the
+device kernel. If `iscsi_tcp.ko` is provided as a loadable module, place it
+under the module overlay path, for example:
+
+    module/system/lib64/modules/iscsi_tcp.ko
+
+The Android shim probes several common module directories with
+`finit_module(2)`, including `/system/lib64/modules`, `/vendor/lib64/modules`
+and the active KernelSU/Magisk module directories.

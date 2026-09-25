@@ -25,7 +25,9 @@
 #include <errno.h>
 #include <dirent.h>
 #include <stdbool.h>
+#ifndef __ANDROID__
 #include <libmount/libmount.h>
+#endif
 
 #include "iface.h"
 #include "initiator.h"

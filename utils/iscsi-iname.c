@@ -133,7 +133,11 @@ main(int argc, char *argv[])
 	MD5Update(&context, (md5byte *) & time.tv_usec, sizeof (time.tv_usec));
 
 	/* hostid */
+#ifdef __ANDROID__
+	hostid = (long)getpid();
+#else
 	hostid = gethostid();
+#endif
 	MD5Update(&context, (md5byte *) & hostid, sizeof (hostid));
 
 	/* get the hostname and system name */

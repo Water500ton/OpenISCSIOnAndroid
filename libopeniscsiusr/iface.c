@@ -33,7 +33,12 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <stdbool.h>
+#ifndef __ANDROID__
 #include <libkmod.h>
+#else
+#include <fcntl.h>
+#include <sys/syscall.h>
+#endif
 #include <limits.h>
 
 #include "libopeniscsiusr/libopeniscsiusr.h"
@@ -445,6 +450,42 @@ out:
 
 static int _load_kernel_module(struct iscsi_context *ctx, const char *drv_name)
 {
+#ifdef __ANDROID__
+	static const char *module_dirs[] = {
+		"/data/adb/modules/openiscsi/system/lib/modules",
+		"/data/adb/modules/openiscsi/system/lib64/modules",
+		"/data/adb/ksu/modules/openiscsi/system/lib/modules",
+		"/data/adb/ksu/modules/openiscsi/system/lib64/modules",
+		"/vendor/lib/modules",
+		"/vendor/lib64/modules",
+		"/system/lib/modules",
+		"/system/lib64/modules",
+	};
+	char module_path[PATH_MAX];
+	unsigned int i;
+
+	for (i = 0; i < sizeof(module_dirs) / sizeof(module_dirs[0]); i++) {
+		int fd;
+		long rc;
+
+		snprintf(module_path, sizeof(module_path), "%s/%s.ko",
+			 module_dirs[i], drv_name);
+		if (access(module_path, R_OK) != 0)
+			continue;
+		fd = open(module_path, O_RDONLY | O_CLOEXEC);
+		if (fd < 0)
+			continue;
+		rc = syscall(__NR_finit_module, fd, "", 0);
+		close(fd);
+		if (rc == 0) {
+			_debug(ctx, "Loaded kernel module %s", module_path);
+			return LIBISCSI_OK;
+		}
+	}
+	_debug(ctx, "No module file found for %s, assuming it is built in",
+	       drv_name);
+	return LIBISCSI_OK;
+#else
 	struct kmod_ctx *kctx = NULL;
 	struct kmod_module *mod = NULL;
 	int rc = LIBISCSI_OK;
@@ -472,6 +513,7 @@ out:
 	if (kctx != NULL)
 		kmod_unref(kctx);
 	return rc;
+#endif
 }
 
 static int _iface_conf_write(struct iscsi_context *ctx,

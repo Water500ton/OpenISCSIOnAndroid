@@ -93,7 +93,11 @@
 #define ISCSI_END_REC	"# END RECORD"
 
 #ifndef LOCK_DIR
+#ifdef __ANDROID__
+#define LOCK_DIR		"/data/iscsi"
+#else
 #define LOCK_DIR		"/run/lock/iscsi"
+#endif
 #endif
 #define LOCK_FILE		LOCK_DIR"/lock"
 #define LOCK_WRITE_FILE		LOCK_DIR"/lock.write"

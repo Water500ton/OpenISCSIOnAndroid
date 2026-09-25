@@ -30,6 +30,16 @@ MAN_DIR = $(prefix)/share/man
 
 PKG_CONFIG ?= /usr/bin/pkg-config
 
+ifdef ANDROID
+CFLAGS += -D__ANDROID__ -DNO_SYSTEMD
+PKG_CONFIG = /bin/true
+KMOD_CFLAGS =
+KMOD_LIBS =
+else
+KMOD_CFLAGS = $(shell $(PKG_CONFIG) --cflags libkmod)
+KMOD_LIBS = $(shell $(PKG_CONFIG) --libs libkmod)
+endif
+
 LIBISCSI_USR_DIR=$(TOPDIR)/libopeniscsiusr
 
 LIBISCSI_USR_VERSION_MAJOR=0
@@ -50,13 +60,18 @@ EXTRA_MAN_FILE = libopeniscsiusr.h.3
 OBJS = context.o misc.o session.o sysfs.o iface.o idbm.o node.o default.o
 
 CFLAGS ?= -O2 -g
+ifdef ANDROID
+CFLAGS += -Wall -Wextra -fvisibility=hidden -fPIC
+else
 CFLAGS += -Wall -Werror -Wextra -fvisibility=hidden -fPIC
-CFLAGS += $(shell $(PKG_CONFIG) --cflags libkmod)
+endif
+CFLAGS += $(ANDROID_CFLAGS)
+CFLAGS += $(KMOD_CFLAGS)
 CFLAGS += -DSBINDIR=\"$(SBINDIR)\"
 CFLAGS += -DISCSI_DB_ROOT=\"$(DBROOT)\"
 CFLAGS += -DISCSI_VERSION_STR=\"$(ISCSI_VERSION_STR)\"
 
-LDFLAGS += $(shell $(PKG_CONFIG) --libs libkmod)
+LDFLAGS += $(KMOD_LIBS)
 
 LIBADD =
 

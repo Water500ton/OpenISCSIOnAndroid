@@ -19,7 +19,14 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <errno.h>
+#ifndef __ANDROID__
 #include <libkmod.h>
+#else
+#include <fcntl.h>
+#include <limits.h>
+#include <sys/stat.h>
+#include <sys/syscall.h>
+#endif
 #include <net/if.h>
 #include <net/if_arp.h>
 #include <sys/ioctl.h>
@@ -189,10 +196,17 @@ free_ifni:
 
 /*
  * Most distros still do not have wide libkmod use, so
- * use modprobe for now
+ * use modprobe for now.
+ *
+ * Android has no modprobe and no libkmod; load a matching .ko
+ * directly with finit_module(2) from the usual module locations.
+ * If the module is already built into the kernel (or simply not
+ * present) this function returns success and lets sysfs probing
+ * decide whether the transport is usable.
  */
 int transport_load_kmod(char *transport_name)
 {
+#ifndef __ANDROID__
 	struct kmod_ctx *ctx;
 	struct kmod_module *mod;
 	int rc;
@@ -234,6 +248,55 @@ int transport_load_kmod(char *transport_name)
 unref_mod:
 	kmod_unref(ctx);
 	return rc;
+#else
+	static const char *module_dirs[] = {
+		"/data/adb/modules/openiscsi/system/lib/modules",
+		"/data/adb/modules/openiscsi/system/lib64/modules",
+		"/data/adb/ksu/modules/openiscsi/system/lib/modules",
+		"/data/adb/ksu/modules/openiscsi/system/lib64/modules",
+		"/vendor/lib/modules",
+		"/vendor/lib64/modules",
+		"/system/lib/modules",
+		"/system/lib64/modules",
+	};
+	const char *module_name = transport_name;
+	char module_path[PATH_MAX];
+	unsigned int i;
+
+	if (!strcmp(transport_name, "tcp"))
+		module_name = "iscsi_tcp";
+	else if (!strcmp(transport_name, "iser"))
+		module_name = "ib_iser";
+
+	for (i = 0; i < sizeof(module_dirs) / sizeof(module_dirs[0]); i++) {
+		int fd;
+		long rc;
+
+		snprintf(module_path, sizeof(module_path), "%s/%s.ko",
+			 module_dirs[i], module_name);
+		if (access(module_path, R_OK) != 0)
+			continue;
+
+		fd = open(module_path, O_RDONLY | O_CLOEXEC);
+		if (fd < 0) {
+			log_error("Could not open module %s: %s",
+				  module_path, strerror(errno));
+			continue;
+		}
+		rc = syscall(__NR_finit_module, fd, "", 0);
+		close(fd);
+		if (rc == 0) {
+			log_debug(3, "Loaded kernel module %s", module_path);
+			return 0;
+		}
+		log_debug(3, "Could not load module %s: %s",
+			  module_path, strerror(errno));
+	}
+
+	log_debug(3, "No module file found for %s, assuming it is built in",
+		  module_name);
+	return 0;
+#endif
 }
 
 int set_transport_template(struct iscsi_transport *t)

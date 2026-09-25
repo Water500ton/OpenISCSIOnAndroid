@@ -2304,6 +2304,9 @@ static int idbm_rec_write_old(node_rec_t *rec)
 		return ISCSI_ERR_NOMEM;
 	}
 
+#ifdef __ANDROID__
+	/* glob(3) is only available from Android API 28. */
+#else
 	/* check for newer portal dir with tpgt */
 	snprintf(portal, PATH_MAX, "%s/%s/%s,%d,*", NODE_CONFIG_DIR,
 		 rec->name, rec->conn[0].address, rec->conn[0].port);
@@ -2327,6 +2330,7 @@ static int idbm_rec_write_old(node_rec_t *rec)
 	}
 	globfree(&globbuf);
 	rc = 0;
+#endif
 
 	/* if a tpgt was selected from an old record, write entry in new format */
 	if (tpgt != PORTAL_GROUP_TAG_UNKNOWN) {

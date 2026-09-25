@@ -19,3 +19,11 @@ libopeniscsiusr/tests/test_iface
 libopeniscsiusr/tests/test_node
 # used for testing
 .setup*
+
+# Android/KernelSU build artifacts
+build/
+OpenISCSIOnAndroid-KernelSU-*.zip
+module/system/bin/*
+module/system/lib64/*
+!module/system/bin/.gitkeep
+!module/system/lib64/.gitkeep

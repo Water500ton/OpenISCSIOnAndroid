@@ -1,0 +1,6 @@
+id=openiscsi
+name=Open-iSCSI for Android
+version=v2.1.13
+versionCode=213
+author=Water500ton
+description=Open-iSCSI userspace tools (iscsid, iscsiadm, iscsistart, iscsi-iname) for ARM64 Android. Configuration and runtime data live in /data/iscsi.

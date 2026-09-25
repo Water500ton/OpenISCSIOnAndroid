@@ -22,7 +22,11 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <dirent.h>
+#ifndef __ANDROID__
 #include <libmount/libmount.h>
+#else
+#include <limits.h>
+#endif
 
 #include "iface.h"
 #include "initiator.h"
@@ -37,6 +41,35 @@
 #include "iscsi_err.h"
 #include "iscsi_net_util.h"
 
+static int trans_filter(const struct dirent *d)
+{
+	if (!strcmp(".", d->d_name) || !strcmp("..", d->d_name))
+		return 0;
+	return 1;
+}
+
+static int subdir_filter(const struct dirent *d)
+{
+	if (!(d->d_type & DT_DIR))
+		return 0;
+	return trans_filter(d);
+}
+
+static int is_partition(const char *path)
+{
+	char *devtype;
+	int rc = 0;
+
+	devtype = sysfs_get_uevent_devtype(path);
+	if (!devtype)
+		return 0;
+	if (strcmp(devtype, "partition") == 0)
+		rc = 1;
+	free(devtype);
+	return rc;
+}
+
+#ifndef __ANDROID__
 static struct libmnt_table *mtab, *swaps;
 static struct libmnt_cache *mntcache;
 
@@ -65,34 +98,6 @@ static int libmount_init(void)
 	mnt_table_parse_mtab(mtab, NULL);
 	mnt_table_parse_swaps(swaps, NULL);
 	return 0;
-}
-
-static int trans_filter(const struct dirent *d)
-{
-	if (!strcmp(".", d->d_name) || !strcmp("..", d->d_name))
-		return 0;
-	return 1;
-}
-
-static int subdir_filter(const struct dirent *d)
-{
-	if (!(d->d_type & DT_DIR))
-		return 0;
-	return trans_filter(d);
-}
-
-static int is_partition(const char *path)
-{
-	char *devtype;
-	int rc = 0;
-
-	devtype = sysfs_get_uevent_devtype(path);
-	if (!devtype)
-		return 0;
-	if (strcmp(devtype, "partition") == 0)
-		rc = 1;
-	free(devtype);
-	return rc;
 }
 
 static int blockdev_check_mnts(char *syspath)
@@ -124,6 +129,48 @@ out:
 	free(_devname);
 	return rc;
 }
+#else
+static int proc_file_has_source(const char *path, const char *devname)
+{
+	FILE *f;
+	char line[PATH_MAX];
+	int found = 0;
+
+	f = fopen(path, "r");
+	if (!f)
+		return 0;
+
+	while (fgets(line, sizeof(line), f)) {
+		char source[PATH_MAX];
+		if (sscanf(line, "%255s", source) == 1 &&
+		    !strcmp(source, devname)) {
+			found = 1;
+			break;
+		}
+	}
+	fclose(f);
+	return found;
+}
+
+static int blockdev_check_mnts(char *syspath)
+{
+	char *devname = NULL;
+	char dev_path[PATH_MAX];
+	int rc = 0;
+
+	devname = sysfs_get_uevent_devname(syspath);
+	if (!devname)
+		return 0;
+
+	snprintf(dev_path, sizeof(dev_path), "/dev/%s", devname);
+	if (proc_file_has_source("/proc/mounts", dev_path) ||
+	    proc_file_has_source("/proc/swaps", dev_path))
+		rc = 1;
+
+	free(devname);
+	return rc;
+}
+#endif
 
 static int count_device_users(char *syspath);
 
@@ -218,6 +265,11 @@ int session_in_use(int sid)
 	int host_no = -1, err = 0;
 	int count = 0;
 
+#ifdef __ANDROID__
+	host_no = iscsi_sysfs_get_host_no_from_sid(sid, &err);
+	if (!err)
+		iscsi_sysfs_for_each_device(&count, host_no, sid, device_in_use);
+#else
 	if (libmount_init()) {
 		log_error("Failed to initialize libmount, "
 			  "not checking for active mounts on session [%d].", sid);
@@ -229,5 +281,6 @@ int session_in_use(int sid)
 		iscsi_sysfs_for_each_device(&count, host_no, sid, device_in_use);
 
 	libmount_cleanup();
+#endif
 	return count;
 }

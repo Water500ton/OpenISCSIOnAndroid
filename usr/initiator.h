@@ -36,16 +36,30 @@
 #include "log.h"
 
 #ifndef ISCSI_CONFIG_ROOT
+#ifdef __ANDROID__
+#define ISCSI_CONFIG_ROOT	"/data/iscsi/"
+#else
 #define ISCSI_CONFIG_ROOT	"/etc/iscsi/"
+#endif
 #endif
 
 #define CONFIG_FILE		ISCSI_CONFIG_ROOT"/iscsid.conf"
 #define INITIATOR_NAME_FILE	ISCSI_CONFIG_ROOT"/initiatorname.iscsi"
 
+#ifndef PID_FILE
+#ifdef __ANDROID__
+#define PID_FILE		"/data/iscsi/iscsid.pid"
+#else
 #define PID_FILE		"/run/iscsid.pid"
+#endif
+#endif
 
 #ifndef LOCK_DIR
+#ifdef __ANDROID__
+#define LOCK_DIR		"/data/iscsi"
+#else
 #define LOCK_DIR		"/run/lock/iscsi"
+#endif
 #endif
 
 #define LOCK_FILE		LOCK_DIR"/lock"

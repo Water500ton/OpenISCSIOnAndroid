@@ -43,18 +43,46 @@ HOMEDIR ?= $(etcdir)/iscsi
 
 PKG_CONFIG ?= /usr/bin/pkg-config
 
+ifdef ANDROID
+CFLAGS += -D__ANDROID__ -DNO_SYSTEMD
+PKG_CONFIG = /bin/true
+KMOD_CFLAGS =
+SYSTEMD_CFLAGS =
+KMOD_LIBS =
+SYSTEMD_LIBS =
+ISNS_LIBS =
+CRYPTO_LIBS =
+MOUNT_LIBS =
+RT_LIBS =
+else
+KMOD_CFLAGS = $(shell $(PKG_CONFIG) --cflags libkmod)
+SYSTEMD_CFLAGS = $(shell $(PKG_CONFIG) --cflags libsystemd)
+KMOD_LIBS = $(shell $(PKG_CONFIG) --libs libkmod)
+SYSTEMD_LIBS = $(shell $(PKG_CONFIG) --libs libsystemd)
+ISNS_LIBS = -lisns
+CRYPTO_LIBS = -lcrypto
+MOUNT_LIBS = -lmount
+RT_LIBS = -lrt
+endif
+
 CFLAGS ?= -O2 -g
 WARNFLAGS ?= -Wall -Wextra -Werror -Wstrict-prototypes -fno-common
 CFLAGS += $(WARNFLAGS) -I../include -I. -D_GNU_SOURCE \
 	  -I$(TOPDIR)/libopeniscsiusr \
 	  -DISCSI_VERSION_STR=\"$(ISCSI_VERSION_STR)\"
-CFLAGS += $(shell $(PKG_CONFIG) --cflags libkmod)
-CFLAGS += $(shell $(PKG_CONFIG) --cflags libsystemd)
+CFLAGS += $(ANDROID_CFLAGS)
+CFLAGS += $(KMOD_CFLAGS) $(SYSTEMD_CFLAGS)
+ifndef ANDROID
 CFLAGS += -DISNS_SUPPORTED
+endif
 ISCSI_LIB = -L$(TOPDIR)/libopeniscsiusr -lopeniscsiusr
-LDFLAGS += $(shell $(PKG_CONFIG) --libs libkmod)
+LDFLAGS += $(KMOD_LIBS)
+ifndef ANDROID
 ifeq ($(NO_SYSTEMD),)
-LDFLAGS += $(shell $(PKG_CONFIG) --libs libsystemd)
+LDFLAGS += $(SYSTEMD_LIBS)
+else
+CFLAGS += -DNO_SYSTEMD
+endif
 else
 CFLAGS += -DNO_SYSTEMD
 endif
@@ -92,15 +120,15 @@ all: $(PROGRAMS)
 
 iscsid: $(ISCSI_LIB_OBJS) $(SYSDEPS_OBJS) $(INITIATOR_OBJS) $(DISCOVERY_OBJS) $(FW_BOOT_OBJS) \
 	$(ISCSID_OBJS)
-	$(CC) $(CFLAGS) $^ -o $@  -lisns -lcrypto -lrt -lmount $(LDFLAGS) $(ISCSI_LIB)
+	$(CC) $(CFLAGS) $^ -o $@ $(ISNS_LIBS) $(CRYPTO_LIBS) $(RT_LIBS) $(MOUNT_LIBS) $(LDFLAGS) $(ISCSI_LIB)
 
 iscsiadm: $(ISCSI_LIB_OBJS) $(SYSDEPS_OBJS) $(DISCOVERY_OBJS) $(FW_BOOT_OBJS) \
 	$(ISCSIADM_OBJS)
-	$(CC) $(CFLAGS) $^ -o $@ -lisns -lcrypto -lmount $(LDFLAGS) $(ISCSI_LIB)
+	$(CC) $(CFLAGS) $^ -o $@ $(ISNS_LIBS) $(CRYPTO_LIBS) $(MOUNT_LIBS) $(LDFLAGS) $(ISCSI_LIB)
 
 iscsistart: $(ISCSI_LIB_OBJS) $(SYSDEPS_OBJS) $(INITIATOR_OBJS) $(FW_BOOT_OBJS) \
 	$(ISCSISTART_OBJS)
-	$(CC) $(CFLAGS) $^ -o $@ -lcrypto -lrt $(LDFLAGS) $(ISCSI_LIB)
+	$(CC) $(CFLAGS) $^ -o $@ $(CRYPTO_LIBS) $(RT_LIBS) $(LDFLAGS) $(ISCSI_LIB)
 
 install: $(DESTDIR)$(SBINDIR) $(PROGRAMS_DEST)
 

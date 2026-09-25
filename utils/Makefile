@@ -22,6 +22,7 @@ IQN_PREFIX ?= iqn.2016-04.com.open-iscsi
 
 CFLAGS ?= -O2 -fno-inline -g
 CFLAGS += -Wall -Wextra -Wstrict-prototypes
+CFLAGS += $(ANDROID_CFLAGS)
 CFLAGS += -DISCSI_NAME_PREFIX=\"$(IQN_PREFIX)\"
 
 PROGRAMS	= iscsi-iname

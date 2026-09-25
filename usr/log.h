@@ -31,13 +31,16 @@
 #include "iscsid.h"
 #include "initiator.h"
 
+#include <sys/sem.h>
+
+#ifndef __ANDROID__
 union semun {
 	int val;
 	struct semid_ds *buf;
 	unsigned short int *array;
 	struct seminfo *__buf;
 };
-#include <sys/sem.h>
+#endif
 
 #define DEFAULT_AREA_SIZE 16384
 #define MAX_MSG_SIZE 256
